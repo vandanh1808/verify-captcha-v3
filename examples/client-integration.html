@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ví dụ nhúng reCAPTCHA API</title>
+
+    <!--
+        BƯỚC 1: Load reCAPTCHA v3 với Site Key của bạn
+        Thay YOUR_SITE_KEY bằng key thật
+    -->
+    <script src="https://www.google.com/recaptcha/api.js?render=YOUR_SITE_KEY"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .example-box {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        button {
+            padding: 12px 24px;
+            background: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #3367d6; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔌 Nhúng reCAPTCHA API vào Client khác</h1>
+
+    <p>API Endpoint: <code>https://verify-captcha-v3.vercel.app/api/verify</code></p>
+
+    <!-- ============================================ -->
+    <!-- VÍ DỤ 1: BUTTON ĐƠN GIẢN -->
+    <!-- ============================================ -->
+    <div class="example-box">
+        <h3>Ví dụ 1: Button đơn giản</h3>
+        <button onclick="simpleVerify()">🔒 Verify Captcha</button>
+        <div id="result1" class="result"></div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- VÍ DỤ 2: FORM LOGIN -->
+    <!-- ============================================ -->
+    <div class="example-box">
+        <h3>Ví dụ 2: Form Login</h3>
+        <form id="loginForm">
+            <input type="text" placeholder="Username" style="padding:10px; margin:5px; width:200px"><br>
+            <input type="password" placeholder="Password" style="padding:10px; margin:5px; width:200px"><br>
+            <button type="submit">🔐 Đăng nhập</button>
+        </form>
+        <div id="result2" class="result"></div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- VÍ DỤ 3: PROTECT API CALL -->
+    <!-- ============================================ -->
+    <div class="example-box">
+        <h3>Ví dụ 3: Bảo vệ API Call</h3>
+        <button onclick="protectedApiCall()">📡 Gọi Protected API</button>
+        <div id="result3" class="result"></div>
+    </div>
+
+    <script>
+        // ============================================
+        // CẤU HÌNH - THAY BẰNG GIÁ TRỊ THẬT
+        // ============================================
+        const CONFIG = {
+            // Site Key của bạn (public - dùng ở frontend)
+            SITE_KEY: 'YOUR_SITE_KEY',
+
+            // URL API verify (đã deploy trên Vercel)
+            VERIFY_API: 'https://verify-captcha-v3.vercel.app/api/verify'
+        };
+
+        // ============================================
+        // RECAPTCHA HELPER CLASS
+        // ============================================
+        class RecaptchaVerifier {
+            constructor(siteKey, apiUrl) {
+                this.siteKey = siteKey;
+                this.apiUrl = apiUrl;
+            }
+
+            /**
+             * Lấy token từ Google reCAPTCHA
+             * @param {string} action - Tên action để tracking (ví dụ: 'login', 'signup', 'checkout')
+             * @returns {Promise<string>} Token
+             */
+            async getToken(action) {
+                return new Promise((resolve, reject) => {
+                    grecaptcha.ready(() => {
+                        grecaptcha.execute(this.siteKey, { action })
+                            .then(resolve)
+                            .catch(reject);
+                    });
+                });
+            }
+
+            /**
+             * Verify token với backend API
+             * @param {string} action - Tên action
+             * @param {Object} formData - Dữ liệu form (optional)
+             * @returns {Promise<Object>} Kết quả verify
+             */
+            async verify(action, formData = {}) {
+                try {
+                    // Bước 1: Lấy token từ Google
+                    const token = await this.getToken(action);
+
+                    // Bước 2: Gửi đến API verify
+                    const response = await fetch(this.apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            recaptchaToken: token,
+                            formData: formData
+                        })
+                    });
+
+                    // Bước 3: Parse và trả về kết quả
+                    return await response.json();
+                } catch (error) {
+                    return {
+                        success: false,
+                        message: 'Lỗi kết nối: ' + error.message
+                    };
+                }
+            }
+        }
+
+        // ============================================
+        // KHỞI TẠO VERIFIER
+        // ============================================
+        const captcha = new RecaptchaVerifier(CONFIG.SITE_KEY, CONFIG.VERIFY_API);
+
+        // ============================================
+        // HELPER: HIỂN THỊ KẾT QUẢ
+        // ============================================
+        function showResult(elementId, success, message) {
+            const el = document.getElementById(elementId);
+            el.className = 'result ' + (success ? 'success' : 'error');
+            el.textContent = message;
+            el.style.display = 'block';
+        }
+
+        // ============================================
+        // VÍ DỤ 1: SIMPLE VERIFY
+        // ============================================
+        async function simpleVerify() {
+            showResult('result1', true, '⏳ Đang verify...');
+
+            const result = await captcha.verify('button_click');
+
+            if (result.success) {
+                showResult('result1', true, `✅ Thành công! Score: ${result.score}`);
+            } else {
+                showResult('result1', false, `❌ ${result.message}`);
+            }
+        }
+
+        // ============================================
+        // VÍ DỤ 2: FORM LOGIN
+        // ============================================
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            showResult('result2', true, '⏳ Đang xác thực...');
+
+            // Verify captcha TRƯỚC khi xử lý login
+            const result = await captcha.verify('login', {
+                action: 'user_login'
+            });
+
+            if (result.success) {
+                showResult('result2', true, `✅ Captcha passed (Score: ${result.score}). Tiếp tục xử lý login...`);
+
+                // TODO: Gọi API login thật ở đây
+                // await loginAPI(username, password);
+
+            } else {
+                showResult('result2', false, `❌ Bị chặn: ${result.message}`);
+            }
+        });
+
+        // ============================================
+        // VÍ DỤ 3: PROTECTED API CALL
+        // ============================================
+        async function protectedApiCall() {
+            showResult('result3', true, '⏳ Đang verify trước khi gọi API...');
+
+            // Verify captcha trước
+            const captchaResult = await captcha.verify('api_call');
+
+            if (!captchaResult.success) {
+                showResult('result3', false, `❌ Captcha failed: ${captchaResult.message}`);
+                return;
+            }
+
+            // Captcha passed - giờ gọi API thật
+            showResult('result3', true, `✅ Captcha OK (Score: ${captchaResult.score}). Có thể gọi API an toàn!`);
+
+            // TODO: Gọi API của bạn ở đây
+            // const data = await fetch('https://your-api.com/endpoint', {
+            //     headers: { 'X-Captcha-Score': captchaResult.score }
+            // });
+        }
+
+        // ============================================
+        // LOG KHI SẴN SÀNG
+        // ============================================
+        grecaptcha.ready(() => {
+            console.log('✅ reCAPTCHA v3 ready!');
+        });
+    </script>
+</body>
+</html>

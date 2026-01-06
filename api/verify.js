@@ -14,15 +14,45 @@
  */
 module.exports = async function handler(req, res) {
     // ============================================
-    // CORS HEADERS - Cho phép frontend gọi API
+    // CORS HEADERS - Cho phép frontend từ domain khác gọi API
     // ============================================
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    // Xử lý preflight request (OPTIONS)
+    // Cho phép TẤT CẢ domain gọi API (public API)
+    // Nếu muốn giới hạn domain cụ thể, xem hướng dẫn bên dưới
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    /*
+    // OPTION: Chỉ cho phép domain cụ thể (bảo mật hơn)
+    const allowedOrigins = [
+        'https://your-main-site.com',
+        'https://another-site.com',
+        'http://localhost:3000'
+    ];
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    */
+
+    // Các CORS headers cần thiết
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '86400'); // Cache preflight 24h
+
+    // Xử lý preflight request (OPTIONS) - Browser gửi trước POST
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
+    }
+
+    // Cho phép GET để test API (trả về thông tin)
+    if (req.method === 'GET') {
+        return res.status(200).json({
+            success: true,
+            message: 'reCAPTCHA Verify API is running',
+            usage: 'POST /api/verify with { recaptchaToken: "...", formData: {...} }',
+            cors: 'Enabled for all origins'
+        });
     }
 
     // ============================================
