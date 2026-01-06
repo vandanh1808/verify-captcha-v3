@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Liên hệ - reCAPTCHA v3</title>
+
+    <!--
+        QUAN TRỌNG: Thay YOUR_SITE_KEY bằng Site Key thật từ Google reCAPTCHA
+        Lấy key tại: https://www.google.com/recaptcha/admin
+    -->
+    <script src="https://www.google.com/recaptcha/api.js?render=YOUR_SITE_KEY"></script>
+
+    <style>
+        /* Reset và base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* Container form */
+        .form-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+        }
+
+        /* Tiêu đề */
+        .form-title {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .form-subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        /* Form group */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #444;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .form-group label span {
+            color: #e74c3c;
+        }
+
+        /* Input styles */
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        /* Submit button */
+        .submit-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .submit-btn.loading .spinner {
+            display: inline-block;
+        }
+
+        .submit-btn.loading .btn-text {
+            opacity: 0.8;
+        }
+
+        /* Alert messages */
+        .alert {
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .alert.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* reCAPTCHA badge notice */
+        .recaptcha-notice {
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+            margin-top: 20px;
+            line-height: 1.6;
+        }
+
+        .recaptcha-notice a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .recaptcha-notice a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .form-container {
+                padding: 30px 20px;
+            }
+
+            .form-title {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <h1 class="form-title">📧 Liên hệ với chúng tôi</h1>
+        <p class="form-subtitle">Được bảo vệ bởi Google reCAPTCHA v3</p>
+
+        <!-- Alert messages -->
+        <div id="alertSuccess" class="alert alert-success">
+            ✅ Gửi thành công! Chúng tôi sẽ phản hồi sớm nhất.
+        </div>
+        <div id="alertError" class="alert alert-error">
+            ❌ <span id="errorMessage">Có lỗi xảy ra. Vui lòng thử lại.</span>
+        </div>
+
+        <!-- Contact Form -->
+        <form id="contactForm">
+            <div class="form-group">
+                <label for="name">Họ và tên <span>*</span></label>
+                <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    placeholder="Nhập họ và tên của bạn"
+                    required
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email <span>*</span></label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="email@example.com"
+                    required
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Số điện thoại</label>
+                <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    placeholder="0912 345 678"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="message">Nội dung tin nhắn <span>*</span></label>
+                <textarea
+                    id="message"
+                    name="message"
+                    placeholder="Nhập nội dung tin nhắn..."
+                    required
+                ></textarea>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                <span class="spinner"></span>
+                <span class="btn-text">Gửi tin nhắn</span>
+            </button>
+        </form>
+
+        <p class="recaptcha-notice">
+            Trang này được bảo vệ bởi reCAPTCHA và tuân theo
+            <a href="https://policies.google.com/privacy" target="_blank">Chính sách bảo mật</a> và
+            <a href="https://policies.google.com/terms" target="_blank">Điều khoản dịch vụ</a> của Google.
+        </p>
+    </div>
+
+    <script>
+        // ============================================
+        // CẤU HÌNH - THAY BẰNG SITE KEY CỦA BẠN
+        // ============================================
+        const RECAPTCHA_SITE_KEY = 'YOUR_SITE_KEY';
+
+        // ============================================
+        // DOM ELEMENTS
+        // ============================================
+        const contactForm = document.getElementById('contactForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const alertSuccess = document.getElementById('alertSuccess');
+        const alertError = document.getElementById('alertError');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // ============================================
+        // HELPER FUNCTIONS
+        // ============================================
+
+        /**
+         * Hiển thị thông báo thành công
+         */
+        function showSuccess() {
+            alertError.classList.remove('show');
+            alertSuccess.classList.add('show');
+
+            // Tự động ẩn sau 5 giây
+            setTimeout(() => {
+                alertSuccess.classList.remove('show');
+            }, 5000);
+        }
+
+        /**
+         * Hiển thị thông báo lỗi
+         * @param {string} message - Nội dung lỗi
+         */
+        function showError(message) {
+            alertSuccess.classList.remove('show');
+            errorMessage.textContent = message;
+            alertError.classList.add('show');
+
+            // Tự động ẩn sau 5 giây
+            setTimeout(() => {
+                alertError.classList.remove('show');
+            }, 5000);
+        }
+
+        /**
+         * Ẩn tất cả thông báo
+         */
+        function hideAlerts() {
+            alertSuccess.classList.remove('show');
+            alertError.classList.remove('show');
+        }
+
+        /**
+         * Bật/tắt trạng thái loading của button
+         * @param {boolean} loading - Trạng thái loading
+         */
+        function setLoading(loading) {
+            if (loading) {
+                submitBtn.classList.add('loading');
+                submitBtn.disabled = true;
+            } else {
+                submitBtn.classList.remove('loading');
+                submitBtn.disabled = false;
+            }
+        }
+
+        /**
+         * Lấy dữ liệu từ form
+         * @returns {Object} Dữ liệu form
+         */
+        function getFormData() {
+            return {
+                name: document.getElementById('name').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                phone: document.getElementById('phone').value.trim(),
+                message: document.getElementById('message').value.trim()
+            };
+        }
+
+        /**
+         * Reset form về trạng thái ban đầu
+         */
+        function resetForm() {
+            contactForm.reset();
+        }
+
+        // ============================================
+        // RECAPTCHA FUNCTIONS
+        // ============================================
+
+        /**
+         * Lấy token reCAPTCHA v3
+         * @param {string} action - Tên action để tracking
+         * @returns {Promise<string>} Token reCAPTCHA
+         */
+        async function getRecaptchaToken(action) {
+            return new Promise((resolve, reject) => {
+                // Đợi grecaptcha sẵn sàng
+                grecaptcha.ready(function() {
+                    grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: action })
+                        .then(function(token) {
+                            resolve(token);
+                        })
+                        .catch(function(error) {
+                            reject(error);
+                        });
+                });
+            });
+        }
+
+        // ============================================
+        // FORM SUBMISSION
+        // ============================================
+
+        /**
+         * Xử lý submit form
+         * @param {Event} event - Form submit event
+         */
+        async function handleSubmit(event) {
+            // Ngăn form submit mặc định
+            event.preventDefault();
+
+            // Ẩn thông báo cũ
+            hideAlerts();
+
+            // Bật loading
+            setLoading(true);
+
+            try {
+                // Bước 1: Lấy token reCAPTCHA
+                console.log('🔄 Đang lấy token reCAPTCHA...');
+                const recaptchaToken = await getRecaptchaToken('contact_form');
+                console.log('✅ Đã lấy được token reCAPTCHA');
+
+                // Bước 2: Thu thập dữ liệu form
+                const formData = getFormData();
+
+                // Bước 3: Gửi request đến API
+                console.log('🔄 Đang gửi dữ liệu...');
+                const response = await fetch('/api/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        // Token reCAPTCHA để backend verify
+                        recaptchaToken: recaptchaToken,
+                        // Dữ liệu form
+                        formData: formData
+                    })
+                });
+
+                // Bước 4: Xử lý response
+                const result = await response.json();
+
+                if (result.success) {
+                    // Thành công
+                    console.log('✅ Gửi form thành công!');
+                    console.log('📊 reCAPTCHA Score:', result.score);
+
+                    showSuccess();
+                    resetForm();
+                } else {
+                    // Thất bại - có thể là spam
+                    console.log('❌ Xác thực thất bại:', result.message);
+                    showError(result.message || 'Xác thực reCAPTCHA thất bại. Vui lòng thử lại.');
+                }
+
+            } catch (error) {
+                // Lỗi network hoặc lỗi khác
+                console.error('❌ Lỗi:', error);
+                showError('Có lỗi kết nối. Vui lòng kiểm tra mạng và thử lại.');
+            } finally {
+                // Tắt loading
+                setLoading(false);
+            }
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+
+        // Lắng nghe sự kiện submit form
+        contactForm.addEventListener('submit', handleSubmit);
+
+        // Log khi reCAPTCHA sẵn sàng
+        grecaptcha.ready(function() {
+            console.log('✅ reCAPTCHA v3 đã sẵn sàng');
+        });
+    </script>
+</body>
+</html>
