@@ -1,206 +1,118 @@
 // ============================================
 // VERCEL SERVERLESS FUNCTION - VERIFY RECAPTCHA V3
 // ============================================
-// File: /api/verify.js
-// Endpoint: POST /api/verify
-// Mục đích: Xác thực token reCAPTCHA v3 từ frontend
-// ============================================
 
 /**
  * Vercel Serverless Function Handler
- *
- * @param {Object} req - HTTP Request object
- * @param {Object} res - HTTP Response object
  */
 module.exports = async function handler(req, res) {
     // ============================================
-    // CORS HEADERS - Cho phép frontend từ domain khác gọi API
+    // CORS - ĐẶT NGAY ĐẦU TIÊN
     // ============================================
-
-    // Cho phép TẤT CẢ domain gọi API (public API)
-    // Nếu muốn giới hạn domain cụ thể, xem hướng dẫn bên dưới
-    res.setHeader('Access-Control-Allow-Origin', '*');
-
-    /*
-    // OPTION: Chỉ cho phép domain cụ thể (bảo mật hơn)
-    const allowedOrigins = [
-        'https://your-main-site.com',
-        'https://another-site.com',
-        'http://localhost:3000'
-    ];
-    const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-    }
-    */
-
-    // Các CORS headers cần thiết
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Max-Age', '86400'); // Cache preflight 24h
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    res.setHeader(
+        'Access-Control-Allow-Headers',
+        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    );
 
-    // Xử lý preflight request (OPTIONS) - Browser gửi trước POST
+    // Preflight request - TRẢ VỀ NGAY
     if (req.method === 'OPTIONS') {
-        return res.status(200).end();
+        res.status(200).end();
+        return;
     }
 
-    // Cho phép GET để test API (trả về thông tin)
+    // GET - Test API
     if (req.method === 'GET') {
         return res.status(200).json({
             success: true,
             message: 'reCAPTCHA Verify API is running',
-            usage: 'POST /api/verify with { recaptchaToken: "...", formData: {...} }',
-            cors: 'Enabled for all origins'
+            cors: 'Enabled'
         });
     }
 
-    // ============================================
-    // CHỈ CHẤP NHẬN METHOD POST
-    // ============================================
+    // Chỉ chấp nhận POST
     if (req.method !== 'POST') {
         return res.status(405).json({
             success: false,
-            message: 'Method không được hỗ trợ. Chỉ chấp nhận POST.'
+            message: 'Method not allowed'
         });
     }
 
     try {
-        // ============================================
-        // LẤY DỮ LIỆU TỪ REQUEST BODY
-        // ============================================
         const { recaptchaToken, formData } = req.body;
 
-        // Kiểm tra token có được gửi lên không
         if (!recaptchaToken) {
             return res.status(400).json({
                 success: false,
-                message: 'Thiếu token reCAPTCHA.'
+                message: 'Missing recaptchaToken'
             });
         }
 
-        // ============================================
-        // LẤY SECRET KEY TỪ ENVIRONMENT VARIABLE
-        // ============================================
-        // QUAN TRỌNG: Secret key phải được lưu trong Environment Variables
-        // KHÔNG BAO GIỜ hardcode secret key trong code!
+        // Lấy secret key từ env
         const secretKey = process.env.RECAPTCHA_SECRET_KEY;
 
         if (!secretKey) {
-            console.error('❌ RECAPTCHA_SECRET_KEY chưa được cấu hình');
+            console.error('RECAPTCHA_SECRET_KEY not configured');
             return res.status(500).json({
                 success: false,
-                message: 'Lỗi cấu hình server. Vui lòng liên hệ quản trị viên.'
+                message: 'Server configuration error'
             });
         }
 
-        // ============================================
-        // GỌI GOOGLE RECAPTCHA API ĐỂ XÁC THỰC
-        // ============================================
-        console.log('🔄 Đang xác thực với Google reCAPTCHA...');
-
-        // Tạo URL với parameters
+        // Gọi Google reCAPTCHA API
         const verifyUrl = 'https://www.google.com/recaptcha/api/siteverify';
-
-        // Tạo form data để gửi đi
         const params = new URLSearchParams();
         params.append('secret', secretKey);
         params.append('response', recaptchaToken);
 
-        // Gọi API Google
         const verifyResponse = await fetch(verifyUrl, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: params.toString()
         });
 
-        // Parse response từ Google
         const verifyResult = await verifyResponse.json();
 
-        console.log('📊 Kết quả từ Google:', JSON.stringify(verifyResult, null, 2));
+        console.log('reCAPTCHA result:', verifyResult);
 
-        // ============================================
-        // KIỂM TRA KẾT QUẢ XÁC THỰC
-        // ============================================
-
-        // Kiểm tra success từ Google
+        // Kiểm tra kết quả
         if (!verifyResult.success) {
-            console.log('❌ reCAPTCHA verification failed:', verifyResult['error-codes']);
             return res.status(400).json({
                 success: false,
-                message: 'Xác thực reCAPTCHA thất bại.',
+                message: 'reCAPTCHA verification failed',
                 errors: verifyResult['error-codes']
             });
         }
 
-        // ============================================
-        // KIỂM TRA SCORE (ĐIỂM ĐÁNH GIÁ)
-        // ============================================
-        // Score từ 0.0 đến 1.0
-        // - 1.0: Rất có khả năng là người thật
-        // - 0.0: Rất có khả năng là bot
-        // - Khuyến nghị: score >= 0.5 là an toàn
-
+        // Kiểm tra score (ngưỡng 0.5)
         const score = verifyResult.score;
-        const action = verifyResult.action;
-        const scoreThreshold = 0.5; // Ngưỡng điểm chấp nhận
-
-        console.log(`📊 Score: ${score}, Action: ${action}`);
-
-        if (score < scoreThreshold) {
-            console.log(`⚠️ Score quá thấp: ${score} < ${scoreThreshold}`);
+        if (score < 0.5) {
             return res.status(400).json({
                 success: false,
-                message: 'Hệ thống nghi ngờ bạn là bot. Vui lòng thử lại.',
+                message: 'Score too low, suspected bot',
                 score: score
             });
         }
 
-        // ============================================
-        // XÁC THỰC THÀNH CÔNG - XỬ LÝ FORM DATA
-        // ============================================
-        console.log('✅ reCAPTCHA verification passed!');
-        console.log('📝 Form data:', JSON.stringify(formData, null, 2));
-
-        // Tại đây bạn có thể:
-        // 1. Lưu dữ liệu vào database
-        // 2. Gửi email thông báo
-        // 3. Tích hợp với các service khác (Slack, Discord, etc.)
-
-        // Ví dụ: Log dữ liệu form
+        // Thành công
+        console.log('Verification passed, score:', score);
         if (formData) {
-            console.log('📧 Thông tin liên hệ mới:');
-            console.log(`   - Tên: ${formData.name}`);
-            console.log(`   - Email: ${formData.email}`);
-            console.log(`   - SĐT: ${formData.phone || 'Không cung cấp'}`);
-            console.log(`   - Nội dung: ${formData.message}`);
+            console.log('Form data:', formData);
         }
 
-        // ============================================
-        // TRẢ VỀ KẾT QUẢ THÀNH CÔNG
-        // ============================================
         return res.status(200).json({
             success: true,
-            message: 'Xác thực thành công! Form đã được gửi.',
-            score: score,
-            action: action,
-            // Không trả về formData trong production để bảo mật
-            // formData: formData
+            message: 'Verification successful',
+            score: score
         });
 
     } catch (error) {
-        // ============================================
-        // XỬ LÝ LỖI
-        // ============================================
-        console.error('❌ Server Error:', error);
-
+        console.error('Error:', error);
         return res.status(500).json({
             success: false,
-            message: 'Lỗi server. Vui lòng thử lại sau.',
-            // Không trả về chi tiết lỗi trong production
-            // error: error.message
+            message: 'Server error'
         });
     }
 };
